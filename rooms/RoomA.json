@@ -7,9 +7,9 @@
   "ambient": 0.6,
 
   "textures": [
-    { "id": "wall",  "path": "https://playground.babylonjs.com/textures/brick.jpg" },
-    { "id": "floor", "path": "https://playground.babylonjs.com/textures/ground.jpg" },
-    { "id": "ceil",  "path": "https://playground.babylonjs.com/textures/wood.jpg" }
+    { "id": "wall",  "path": "https://www.babylonjs-playground.com/textures/bloc.jpg" },
+    { "id": "floor", "path": "https://www.babylonjs-playground.com/textures/floor.png" },
+    { "id": "ceil",  "path": "https://www.babylonjs-playground.com/textures/wood.jpg" }
   ],
 
   "materials": [
@@ -41,7 +41,7 @@
     {
       "id": "P_to_B",
       "wall": "east",
-      "rect": { "center": [8.0, 1.1], "size": [1.6, 2.2] },
+      "rect": { "center": [0.0, 1.1], "size": [1.6, 2.2] },
       "locked": false,
       "toRoomFile": "/rooms/RoomB.json"
     }

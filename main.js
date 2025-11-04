@@ -1,5 +1,5 @@
 // main.js — Стабильное FPS-движение (Babylon v8) с собственной коллизией
-// ИСПРАВЛЕНО: AABB портала выступает внутрь комнаты на radius+0.2, чтобы ты попадал в триггер.
+// ИСПРАВЛЕНО: Безопасный переход между сценами для исключения ошибки "No camera defined".
 import {
   Engine, Scene, UniversalCamera, HemisphericLight, PointLight,
   MeshBuilder, Vector3, Color3, Color4, Texture, StandardMaterial,
@@ -31,7 +31,9 @@ const G = {
     openings: { north: [], south: [], west: [], east: [] },
     solids: []
   },
-  portalCooldownUntil: 0
+  portalCooldownUntil: 0,
+  isLoading: false,
+  nextRoomFile: null // <<-- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Запрос на смену комнаты
 };
 
 // ---------- JSON ----------
@@ -43,7 +45,7 @@ async function loadJSON(url) {
   return j;
 }
 
-// ---------- геометрия (визуал) ----------
+// ---------- Геометрия и физика (без изменений) ----------
 function makeBox(scene, size, pos, mat, collides=true) {
   const m = MeshBuilder.CreateBox("box", { width:size[0], height:size[1], depth:size[2] }, scene);
   m.position = new Vector3(pos[0], pos[1], pos[2]);
@@ -68,38 +70,26 @@ function buildRoom(room, scene) {
     e:     matById(room.materialsPerFace?.wallEast)
   };
 
-  // Пол/потолок
   makeBox(scene, [sx, 0.3, sz], [cx, cy - hh - 0.15, cz], mats.floor, false);
   makeBox(scene, [sx, 0.2, sz], [cx, cy + hh,        cz], mats.ceil,  false);
+  makeBox(scene, [sx, sy, 0.2], [cx, cy, cz - hd], mats.s, false);
+  makeBox(scene, [sx, sy, 0.2], [cx, cy, cz + hd], mats.n, false);
+  makeBox(scene, [0.2, sy, sz], [cx - hw, cy, cz], mats.w, false);
+  makeBox(scene, [0.2, sy, sz], [cx + hw, cy, cz], mats.e, false);
 
-  // Стены (визуальные панели)
-  makeBox(scene, [sx, sy, 0.2], [cx, cy, cz - hd], mats.s, false); // south (−Z)
-  makeBox(scene, [sx, sy, 0.2], [cx, cy, cz + hd], mats.n, false); // north (+Z)
-  makeBox(scene, [0.2, sy, sz], [cx - hw, cy, cz], mats.w, false); // west  (−X)
-  makeBox(scene, [0.2, sy, sz], [cx + hw, cy, cz], mats.e, false); // east  (+X)
-
-  // Объекты
   for (const o of room.objects || []) {
-    const m = matById(o.material);
-    makeBox(scene, o.size, o.center, m, false);
+    makeBox(scene, o.size, o.center, matById(o.material), false);
   }
 
-  // Аркадная высота глаз
   const floorTopY = cy - hh;
   const eye = G.playerCfg ? (G.playerCfg.height * 0.8) : 1.4;
   G.fixedEyeY = floorTopY + eye;
   log("PHYS", `floorTopY=${floorTopY.toFixed(3)} fixedEyeY=${G.fixedEyeY.toFixed(3)}`);
 
-  // --- Подготовка коллизии ---
   const R = G.playerCfg?.radius ?? 0.36;
+  G.coll.minX = cx - hw + R; G.coll.maxX = cx + hw - R;
+  G.coll.minZ = cz - hd + R; G.coll.maxZ = cz + hd - R;
 
-  // 1) Границы комнаты с учётом радиуса
-  G.coll.minX = cx - hw + R;
-  G.coll.maxX = cx + hw - R;
-  G.coll.minZ = cz - hd + R;
-  G.coll.maxZ = cz + hd - R;
-
-  // 2) Проёмы (для пропуска через стены)
   G.coll.openings = { north: [], south: [], west: [], east: [] };
   for (const p of room.portals || []) {
     const rc = p.rect?.center || [0,1.1];
@@ -117,83 +107,53 @@ function buildRoom(room, scene) {
     }
   }
 
-  // 3) Твёрдые объекты как AABB по XZ (с учётом радиуса)
   G.coll.solids = [];
   for (const o of room.objects || []) {
     if (!o.solid) continue;
-    const [ox, , oz] = o.center;
-    const [sx2, , sz2] = o.size;
-    const hx = sx2/2 + R;
-    const hz = sz2/2 + R;
-    G.coll.solids.push({
-      minX: ox - hx, maxX: ox + hx,
-      minZ: oz - hz, maxZ: oz + hz
-    });
+    const [ox, , oz] = o.center; const [sx2, , sz2] = o.size;
+    const hx = sx2/2 + R; const hz = sz2/2 + R;
+    G.coll.solids.push({ minX: ox - hx, maxX: ox + hx, minZ: oz - hz, maxZ: oz + hz });
   }
 }
 
-// ---------- “физика” по XZ ----------
 function clampRoomWithOpenings(pos, next) {
   let x = next.x, z = next.z;
-
-  // Проверяем каждую стену и пропускаем только через проёмы
-  // NORTH (+Z)
-  if (z > G.coll.maxZ) {
-    const open = G.coll.openings.north.some(o => x >= o.x1 && x <= o.x2);
-    if (!open) z = G.coll.maxZ;
-  }
-  // SOUTH (−Z)
-  if (z < G.coll.minZ) {
-    const open = G.coll.openings.south.some(o => x >= o.x1 && x <= o.x2);
-    if (!open) z = G.coll.minZ;
-  }
-  // EAST (+X)
-  if (x > G.coll.maxX) {
-    const open = G.coll.openings.east.some(o => z >= o.z1 && z <= o.z2);
-    if (!open) x = G.coll.maxX;
-  }
-  // WEST (−X)
-  if (x < G.coll.minX) {
-    const open = G.coll.openings.west.some(o => z >= o.z1 && z <= o.z2);
-    if (!open) x = G.coll.minX;
-  }
-
+  if (z > G.coll.maxZ && !G.coll.openings.north.some(o => x >= o.x1 && x <= o.x2)) z = G.coll.maxZ;
+  if (z < G.coll.minZ && !G.coll.openings.south.some(o => x >= o.x1 && x <= o.x2)) z = G.coll.minZ;
+  if (x > G.coll.maxX && !G.coll.openings.east.some(o => z >= o.z1 && z <= o.z2)) x = G.coll.maxX;
+  if (x < G.coll.minX && !G.coll.openings.west.some(o => z >= o.z1 && z <= o.z2)) x = G.coll.minX;
   return new Vector3(x, G.fixedEyeY ?? pos.y, z);
 }
 
 function sweepAgainstSolids(prev, curr) {
   let x = curr.x, z = curr.z;
   for (const aabb of G.coll.solids) {
-    const inside = (x >= aabb.minX && x <= aabb.maxX && z >= aabb.minZ && z <= aabb.maxZ);
-    if (!inside) continue;
-
-    const dxLeft  = Math.abs(x - aabb.minX);
-    const dxRight = Math.abs(aabb.maxX - x);
-    const dzTop   = Math.abs(z - aabb.minZ);
-    const dzBot   = Math.abs(aabb.maxZ - z);
-    const minPen = Math.min(dxLeft, dxRight, dzTop, dzBot);
-
-    if (minPen === dxLeft) x = aabb.minX;
-    else if (minPen === dxRight) x = aabb.maxX;
-    else if (minPen === dzTop) z = aabb.minZ;
-    else z = aabb.maxZ;
+    if (x >= aabb.minX && x <= aabb.maxX && z >= aabb.minZ && z <= aabb.maxZ) {
+      const dxL = Math.abs(x - aabb.minX), dxR = Math.abs(aabb.maxX - x);
+      const dzT = Math.abs(z - aabb.minZ), dzB = Math.abs(aabb.maxZ - z);
+      const minPen = Math.min(dxL, dxR, dzT, dzB);
+      if (minPen === dxL) x = aabb.minX; else if (minPen === dxR) x = aabb.maxX;
+      else if (minPen === dzT) z = aabb.minZ; else z = aabb.maxZ;
+    }
   }
   return new Vector3(x, G.fixedEyeY ?? prev.y, z);
 }
 
-// ---------- порталы ----------
 function inPortal(pos, portal) {
-  return (
-    pos.x >= portal.min.x && pos.x <= portal.max.x &&
-    pos.y >= portal.min.y && pos.y <= portal.max.y &&
-    pos.z >= portal.min.z && pos.z <= portal.max.z
-  );
+  return pos.x >= portal.min.x && pos.x <= portal.max.x && pos.y >= portal.min.y &&
+         pos.y <= portal.max.y && pos.z >= portal.min.z && pos.z <= portal.max.z;
 }
 
-// ---------- загрузка комнаты ----------
+// ---------- Загрузка комнаты ----------
 async function loadRoom(roomFile) {
+  if (G.isLoading) return;
+  G.isLoading = true;
   log("ROOM", `load -> ${roomFile}`);
-  if (G.scene) G.scene.dispose();
+
+  if (G.scene) {
+    G.scene.dispose();
+    G.scene = null;
+  }
 
   const scene = new Scene(G.engine);
   scene.clearColor = new Color4(0.05,0.06,0.08,1);
@@ -201,175 +161,122 @@ async function loadRoom(roomFile) {
 
   if (!G.playerCfg) G.playerCfg = await loadJSON("/player/player.json");
   const cfg = G.playerCfg;
-  const R = cfg.radius ?? 0.36; // радиус игрока
+  const R = cfg.radius ?? 0.36;
 
   const cam = new UniversalCamera("playerCam", new Vector3(0, 1.6, 0), scene);
   cam.fov = Tools.ToRadians(cfg.fov || 75);
   cam.minZ = 0.05; cam.maxZ = 1000;
   cam.attachControl(canvas, true);
-  cam.checkCollisions = false;
-  cam.applyGravity = false;
+  cam.checkCollisions = false; cam.applyGravity = false;
   cam.keysUp=[]; cam.keysDown=[]; cam.keysLeft=[]; cam.keysRight=[];
   cam.inertia = 0.0;
   cam.angularSensibility = (cfg.controls?.mouseSensitivity ?? 900);
+  G.camera = cam;
 
+  G.keys = {};
   scene.onKeyboardObservable.add((e) => {
-    if (e.type === KeyboardEventTypes.KEYDOWN) {
-      G.keys[e.event.code] = true;
-      if (e.event.code === "ShiftLeft") G.keys.__RUN__ = true;
-    } else if (e.type === KeyboardEventTypes.KEYUP) {
-      G.keys[e.event.code] = false;
-      if (e.event.code === "ShiftLeft") G.keys.__RUN__ = false;
-    }
+    G.keys[e.event.code] = (e.type === KeyboardEventTypes.KEYDOWN);
   });
   canvas.addEventListener("click", () => {
     if (document.pointerLockElement !== canvas) canvas.requestPointerLock();
   });
 
-  G.camera = cam;
-
-  // Свет
   const hemi = new HemisphericLight("hemi", new Vector3(0,1,0), scene);
-  hemi.intensity = 0.0;
-  scene.ambientColor = new Color3(1,1,1);
+  hemi.intensity = 0.0; scene.ambientColor = new Color3(1,1,1);
 
-  // Комната + материалы
   const room = await loadJSON(roomFile);
   G.room = room; G.currentRoomFile = roomFile;
 
   G.textures.clear(); G.materials.clear();
-  for (const t of room.textures || []) {
-    const tex = new Texture(t.path, scene, true, false, Texture.TRILINEAR_SAMPLINGMODE);
-    G.textures.set(t.id, tex);
-  }
+  for (const t of room.textures || []) G.textures.set(t.id, new Texture(t.path, scene));
   for (const m of room.materials || []) {
     const mat = new StandardMaterial(m.id, scene);
-    const tex = m.texture ? G.textures.get(m.texture) : null;
-    if (tex) mat.diffuseTexture = tex;
+    if (m.texture) mat.diffuseTexture = G.textures.get(m.texture);
     mat.specularColor = new Color3(0,0,0);
     G.materials.set(m.id, mat);
   }
-
   for (const L of room.lights || []) {
     if (L.type === "point") {
-      const l = new PointLight("pt", v3(L.pos || [0,1,0]), scene);
-      l.intensity = L.intensity ?? 700;
-      l.range = L.range ?? 18;
-      const c = L.color || [1,1,1];
-      l.diffuse = new Color3(c[0], c[1], c[2]);
+      const l = new PointLight("pt", v3(L.pos), scene);
+      l.intensity = L.intensity ?? 700; l.range = L.range ?? 18;
+      const c = L.color || [1,1,1]; l.diffuse = new Color3(c[0], c[1], c[2]);
     }
   }
 
-  // Визуальная геометрия и коллизия
   buildRoom(room, scene);
 
-  // Порталы → AABB (РАСШИРЕНО ВНУТРЬ КОМНАТЫ НА R+0.2)
   G.portals = [];
-  const [cx,cy,cz] = room.center;
-  const [sx,sy,sz] = room.size;
-  const hw = sx/2, hh = sy/2, hd = sz/2;
+  const [cx,cy,cz] = room.center; const [sx,sy,sz] = room.size;
+  const hw = sx/2, hd = sz/2;
 
-  function wallWorldCenter(wall, y) {
-    if (wall === "west")  return [cx - hw, y, cz];
-    if (wall === "east")  return [cx + hw, y, cz];
-    if (wall === "south") return [cx, y, cz - hd];
-    if (wall === "north") return [cx, y, cz + hd];
-    return [cx, y, cz];
+  function wallWorldCenterWithOffset(wall, y, offset) {
+    if (wall === "west")  return new Vector3(cx - hw, y, cz + offset);
+    if (wall === "east")  return new Vector3(cx + hw, y, cz + offset);
+    if (wall === "south") return new Vector3(cx + offset, y, cz - hd);
+    if (wall === "north") return new Vector3(cx + offset, y, cz + hd);
+    return new Vector3(cx, y, cz);
   }
 
   for (const p of room.portals || []) {
-    const rc = p.rect?.center || [0,1.1];
-    const rs = p.rect?.size   || [1.6,2.2];
-    const c = wallWorldCenter(p.wall, rc[1]);
-
-    const size = [
-      (p.wall === "north" || p.wall === "south") ? rs[0] : 0.2,
-      rs[1],
-      (p.wall === "east"  || p.wall === "west")  ? rs[0] : 0.2
-    ];
-
-    // Декоративная панель
+    const rc = p.rect?.center || [0,1.1]; const rs = p.rect?.size || [1.6,2.2];
+    const centerVec = wallWorldCenterWithOffset(p.wall, rc[1], rc[0]);
+    const c = [centerVec.x, centerVec.y, centerVec.z];
+    const size = [(p.wall==="n"||p.wall==="s")?rs[0]:0.2, rs[1], (p.wall==="e"||p.wall==="w")?rs[0]:0.2];
+    
     const pm = new StandardMaterial(`portal_${p.id}`, scene);
     pm.emissiveColor = p.locked ? new Color3(1,0.2,0.2) : new Color3(0.2,1,0.4);
     pm.alpha = 0.25;
     makeBox(scene, size, c, pm, false);
 
-    // AABB триггера с "заходом" внутрь комнаты
-    const half = [size[0]/2, size[1]/2, size[2]/2];
-    let min = new Vector3(c[0]-half[0], c[1]-half[1], c[2]-half[2]);
-    let max = new Vector3(c[0]+half[0], c[1]+half[1], c[2]+half[2]);
-
-    const inward = R + 0.2; // насколько заходит внутрь комнаты
-    if (p.wall === "east") {
-      // стена на X = cx+hw, уводим min.x внутрь комнаты
-      min.x = (cx + hw) - inward;
-    } else if (p.wall === "west") {
-      // стена на X = cx-hw, уводим max.x внутрь
-      max.x = (cx - hw) + inward;
-    } else if (p.wall === "north") {
-      // стена на Z = cz+hd
-      min.z = (cz + hd) - inward;
-    } else if (p.wall === "south") {
-      // стена на Z = cz-hd
-      max.z = (cz - hd) + inward;
-    }
-
-    G.portals.push({ id:p.id, toRoomFile:p.toRoomFile, locked:!!p.locked, min, max });
+    const h = [size[0]/2,size[1]/2,size[2]/2];
+    let min = new Vector3(c[0]-h[0], c[1]-h[1], c[2]-h[2]);
+    let max = new Vector3(c[0]+h[0], c[1]+h[1], c[2]+h[2]);
+    const inward = R + 0.2;
+    if (p.wall === "east") min.x = (cx + hw) - inward; else if (p.wall === "west") max.x = (cx - hw) + inward;
+    else if (p.wall === "north") min.z = (cz + hd) - inward; else if (p.wall === "south") max.z = (cz - hd) + inward;
+    G.portals.push({ ...p, min, max });
   }
 
-  // Спавн
   if (room.playerSpawn?.enabled) {
     const s = room.playerSpawn;
     cam.position = new Vector3(s.pos[0], G.fixedEyeY, s.pos[2]);
-    cam.rotation  = new Vector3(0, Tools.ToRadians(s.yaw || 0), 0);
+    cam.rotation = new Vector3(0, Tools.ToRadians(s.yaw || 0), 0);
   } else {
     cam.position.y = G.fixedEyeY;
   }
 
-  // Кулдаун порталов
   G.portalCooldownUntil = performance.now() + 900;
 
-  // Главный цикл
   scene.onBeforeRenderObservable.add(() => {
+    if (G.isLoading || G.nextRoomFile) return; // Не обновляем логику, если грузимся или ждём загрузки
     const dt = G.engine.getDeltaTime()/1000;
-    const now = performance.now();
-
-    const fwd = G.camera.getDirection(new Vector3(0,0,1));
-    const right = G.camera.getDirection(new Vector3(1,0,0));
+    
+    const fwd = G.camera.getDirection(Vector3.Forward()); const right = G.camera.getDirection(Vector3.Right());
     fwd.y = 0; right.y = 0;
-    if (fwd.lengthSquared()>0) fwd.normalize();
-    if (right.lengthSquared()>0) right.normalize();
-
+    
     let wish = Vector3.Zero();
-    if (G.keys["KeyW"] || G.keys["ArrowUp"])    wish = wish.add(fwd);
-    if (G.keys["KeyS"] || G.keys["ArrowDown"])  wish = wish.subtract(fwd);
-    if (G.keys["KeyD"] || G.keys["ArrowRight"]) wish = wish.add(right);
-    if (G.keys["KeyA"] || G.keys["ArrowLeft"])  wish = wish.subtract(right);
+    if (G.keys["KeyW"] || G.keys["ArrowUp"]) wish.addInPlace(fwd);
+    if (G.keys["KeyS"] || G.keys["ArrowDown"]) wish.subtractInPlace(fwd);
+    if (G.keys["KeyD"] || G.keys["ArrowRight"]) wish.addInPlace(right);
+    if (G.keys["KeyA"] || G.keys["ArrowLeft"]) wish.subtractInPlace(right);
 
     if (wish.lengthSquared() > 0) {
-      const speed = (G.keys.__RUN__ ? G.playerCfg.runSpeed : G.playerCfg.walkSpeed) * dt;
-      wish = wish.normalize().scale(speed);
-
-      const prev = G.camera.position.clone();
+      const speed = (G.keys["ShiftLeft"] ? G.playerCfg.runSpeed : G.playerCfg.walkSpeed) * dt;
+      wish.normalize().scaleInPlace(speed);
+      const prev = G.camera.position;
       const target = prev.add(wish);
-
-      let afterWalls  = clampRoomWithOpenings(prev, target);
+      let afterWalls = clampRoomWithOpenings(prev, target);
       let afterSolids = sweepAgainstSolids(prev, afterWalls);
-
-      if (G.fixedEyeY != null) afterSolids.y = G.fixedEyeY;
       G.camera.position.copyFrom(afterSolids);
-    } else {
-      if (G.fixedEyeY != null) G.camera.position.y = G.fixedEyeY;
     }
-
-    // Порталы
-    if (now >= G.portalCooldownUntil) {
-      const p = G.camera.position;
+    if (G.fixedEyeY != null) G.camera.position.y = G.fixedEyeY;
+    
+    if (performance.now() >= G.portalCooldownUntil) {
       for (const portal of G.portals) {
-        if (inPortal(p, portal)) {
+        if (inPortal(G.camera.position, portal)) {
           if (portal.locked) { log("TRIG", `portal ${portal.id} LOCKED`); return; }
           log("ROOM", `portal ${portal.id} → ${portal.toRoomFile}`);
-          loadRoom(portal.toRoomFile).catch(err => log("ERR", err.message));
+          G.nextRoomFile = portal.toRoomFile; // <<-- ИЗМЕНЕНИЕ: Просто устанавливаем флаг
           return;
         }
       }
@@ -377,12 +284,12 @@ async function loadRoom(roomFile) {
   });
 
   log("ROOM", `loaded "${room.id}" (walls+floor+ceil+props+portals)`);
-  return scene;
+  G.isLoading = false;
 }
 
-// ---------- старт ----------
+// ---------- Старт ----------
 async function start() {
-  const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+  const engine = new Engine(canvas, true);
   G.engine = engine;
 
   window.addEventListener("keydown", (e) => {
@@ -391,15 +298,27 @@ async function start() {
   });
   window.addEventListener("keyup", (e) => G.keys[e.code] = false);
 
-  const scene = await loadRoom(G.currentRoomFile);
-  engine.runRenderLoop(() => scene.render());
-  window.addEventListener("resize", () => engine.resize());
+  await loadRoom(G.currentRoomFile);
 
+  // ИСПРАВЛЕНО: Новый, безопасный цикл отрисовки
+  engine.runRenderLoop(() => {
+    // 1. Если есть запрос на смену комнаты и мы не заняты, начинаем загрузку
+    if (G.nextRoomFile && !G.isLoading) {
+      loadRoom(G.nextRoomFile).catch(err => {
+        log("ERR", `Failed to load room: ${err.message}`);
+        G.isLoading = false; // Сбрасываем флаг при ошибке
+      });
+      G.nextRoomFile = null; // Сбрасываем запрос
+    }
+
+    // 2. Рендерим сцену только если мы не в процессе загрузки
+    if (!G.isLoading && G.scene && G.scene.isReady()) {
+      G.scene.render();
+    }
+  });
+
+  window.addEventListener("resize", () => engine.resize());
   log("SYS", "READY: WASD / Shift — бег, мышь — обзор; проходи через зелёный проём");
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", start, { once: true });
-} else {
-  start();
-}
+start();
