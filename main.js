@@ -1,5 +1,5 @@
 // main.js — Стабильное FPS-движение (Babylon v8) с собственной коллизией
-// ИСПРАВЛЕНО: Бесшовный переход через порталы. Сначала проверяется вход в портал, потом коллизия со стеной.
+// ИСПРАВЛЕНО: Корректный расчёт AABB триггера портала для всех стен.
 import {
   Engine, Scene, UniversalCamera, HemisphericLight, PointLight,
   MeshBuilder, Vector3, Color3, Color4, Texture, StandardMaterial,
@@ -34,11 +34,10 @@ const G = {
   portalCooldownUntil: 0,
   isLoading: false,
   nextRoomFile: null,
-  playerSpawnInfo: null // <<-- Для бесшовного спавна
+  playerSpawnInfo: null
 };
 
 // ... (JSON, геометрия и коллизия остаются без изменений) ...
-// ---------- JSON ----------
 async function loadJSON(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
@@ -47,7 +46,6 @@ async function loadJSON(url) {
   return j;
 }
 
-// ---------- Геометрия и физика (без изменений) ----------
 function makeBox(scene, size, pos, mat, collides=true) {
   const m = MeshBuilder.CreateBox("box", { width:size[0], height:size[1], depth:size[2] }, scene);
   m.position = new Vector3(pos[0], pos[1], pos[2]);
@@ -234,16 +232,20 @@ async function loadRoom(roomFile) {
     let min = new Vector3(c[0]-h[0], c[1]-h[1], c[2]-h[2]);
     let max = new Vector3(c[0]+h[0], c[1]+h[1], c[2]+h[2]);
     const inward = R + 0.2;
-    if (p.wall === "east") min.x = (cx + hw) - inward; else if (p.wall === "west") max.x = (cx - hw) - inward;
-    else if (p.wall === "north") min.z = (cz + hd) - inward; else if (p.wall === "south") max.z = (cz - hd) + inward;
+
+    // --- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+    if (p.wall === "east") min.x = (cx + hw) - inward;
+    else if (p.wall === "west") max.x = (cx - hw) + inward; // Было `inward`, стало +`inward`
+    else if (p.wall === "north") min.z = (cz + hd) - inward;
+    else if (p.wall === "south") max.z = (cz - hd) + inward; // Было `inward`, стало +`inward`
+    
     G.portals.push({ ...p, min, max });
   }
 
-  // ИСПРАВЛЕНО: Логика спавна для бесшовного перехода
   if (G.playerSpawnInfo) {
     cam.position = new Vector3(G.playerSpawnInfo.pos[0], G.fixedEyeY, G.playerSpawnInfo.pos[2]);
     cam.rotation = new Vector3(0, Tools.ToRadians(G.playerSpawnInfo.yaw || 0), 0);
-    G.playerSpawnInfo = null; // Используем один раз и сбрасываем
+    G.playerSpawnInfo = null;
   } else if (room.playerSpawn?.enabled) {
     const s = room.playerSpawn;
     cam.position = new Vector3(s.pos[0], G.fixedEyeY, s.pos[2]);
@@ -252,7 +254,7 @@ async function loadRoom(roomFile) {
     cam.position.y = G.fixedEyeY;
   }
 
-  G.portalCooldownUntil = performance.now() + 500; // Уменьшил кулдаун для отзывчивости
+  G.portalCooldownUntil = performance.now() + 500;
 
   scene.onBeforeRenderObservable.add(() => {
     if (G.isLoading || G.nextRoomFile) return;
@@ -273,21 +275,18 @@ async function loadRoom(roomFile) {
       const prev = G.camera.position;
       const target = prev.add(wish);
 
-      // --- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ ЛОГИКИ ---
-      // 1. СНАЧАЛА проверяем, не входит ли наш СЛЕДУЮЩИЙ шаг в портал
       if (performance.now() >= G.portalCooldownUntil) {
         for (const portal of G.portals) {
           if (inPortal(target, portal)) {
             if (portal.locked) { log("TRIG", `portal ${portal.id} LOCKED`); return; }
             log("ROOM", `portal ${portal.id} → ${portal.toRoomFile}`);
             G.nextRoomFile = portal.toRoomFile;
-            G.playerSpawnInfo = { pos: portal.exitPos, yaw: portal.exitYaw }; // Сохраняем инфо для спавна
-            return; // Прерываем движение в этой сцене, готовимся к переходу
+            G.playerSpawnInfo = { pos: portal.exitPos, yaw: portal.exitYaw };
+            return;
           }
         }
       }
 
-      // 2. ЕСЛИ НЕ В ПОРТАЛЕ, то применяем физику стен и объектов
       let afterWalls = clampRoomWithOpenings(prev, target);
       let afterSolids = sweepAgainstSolids(prev, afterWalls);
       G.camera.position.copyFrom(afterSolids);
