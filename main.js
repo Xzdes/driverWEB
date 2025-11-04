@@ -9,13 +9,14 @@ import "babylonjs-loaders";
 import "babylonjs-materials";
 
 const canvas = document.getElementById("renderCanvas");
-const logEl  = document.getElementById("log");
+
+
 function log(tag, msg) {
   const line = `[${new Date().toLocaleTimeString()}] ${String(tag).padEnd(6)} ${msg}`;
   console.log("[Engine]", line);
-  if (logEl) { logEl.textContent += line + "\n"; logEl.scrollTop = logEl.scrollHeight; }
+  
 }
-const v3 = (a)=> new Vector3(a[0],a[1],a[2]);
+const v3 = (a)=> new Vector3(a[0],a[1],[2]);
 
 const G = {
   engine: null, scene: null, camera: null,
