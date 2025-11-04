@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "RoomB",
+  "name": "Second Room (B)",
+  "center": [16, 1.5, 0],
+  "size": [12, 3, 12],
+  "ambient": 0.6,
+
+  "textures": [
+    { "id": "wall",  "path": "https://playground.babylonjs.com/textures/brick.jpg" },
+    { "id": "floor", "path": "https://playground.babylonjs.com/textures/grass.png" },
+    { "id": "ceil",  "path": "https://playground.babylonjs.com/textures/wood.jpg" }
+  ],
+
+  "materials": [
+    { "id": "mat_wall",  "texture": "wall"  },
+    { "id": "mat_floor", "texture": "floor" },
+    { "id": "mat_ceil",  "texture": "ceil"  }
+  ],
+
+  "materialsPerFace": {
+    "floor": "mat_floor",
+    "ceiling": "mat_ceil",
+    "wallNorth": "mat_wall",
+    "wallSouth": "mat_wall",
+    "wallWest": "mat_wall",
+    "wallEast": "mat_wall"
+  },
+
+  "objects": [
+    { "id": "boxB", "center": [2, 0.75, -3], "size": [1.5, 1.5, 1.5], "material": "mat_wall", "solid": true }
+  ],
+
+  "lights": [
+    { "type": "point", "pos": [16, 2.6, 0], "intensity": 700, "range": 18, "color": [1, 0.95, 0.9] }
+  ],
+
+  "triggers": [],
+
+  "portals": [
+    {
+      "id": "P_back_A",
+      "wall": "west",
+      "rect": { "center": [-6.0, 1.1], "size": [1.6, 2.2] },
+      "locked": false,
+      "toRoomFile": "/rooms/RoomA.json"
+    }
+  ],
+
+  "playerSpawn": { "enabled": false, "pos": [0, 1.0, 0], "yaw": 0 },
+
+  "enemies": [],
+  "pickups": []
+}

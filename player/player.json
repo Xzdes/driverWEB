@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "player_default",
+
+  "height": 1.75,
+  "radius": 0.36,
+
+  "walkSpeed": 5.4,
+  "runSpeed": 9.2,
+  "jumpSpeed": 7.8,
+
+  "fov": 75,
+
+  "controls": {
+    "mouseSensitivity": 900.0,
+    "invertY": false
+  }
+}

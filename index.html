@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>FPS JSON (Babylon.js, Vite)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- убираем 404 на favicon -->
+  <link rel="icon" href="data:,">
+  <style>
+    html, body { width:100%; height:100%; margin:0; background:#000; color:#fff; }
+    #renderCanvas { width:100%; height:100%; touch-action:none; display:block; }
+    #log {
+      position:absolute; left:10px; top:10px; max-width:48vw; max-height:60vh; overflow:auto;
+      background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.15); border-radius:8px;
+      padding:8px 10px; font:12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space:pre-wrap;
+    }
+    #hint {
+      position:absolute; right:10px; bottom:10px; background:rgba(0,0,0,0.55);
+      border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:6px 8px; font:14px/1.4 system-ui, sans-serif;
+    }
+    #crosshair {
+      position:absolute; left:50%; top:50%; width:14px; height:14px; transform:translate(-50%,-50%); pointer-events:none;
+    }
+    #crosshair::before, #crosshair::after { content:""; position:absolute; left:50%; top:50%; background:#fff; opacity:0.9; }
+    #crosshair::before { width:2px; height:10px; transform:translate(-50%,-50%); }
+    #crosshair::after  { width:10px; height:2px; transform:translate(-50%,-50%); }
+  </style>
+</head>
+<body>
+  <canvas id="renderCanvas"></canvas>
+  <div id="log"></div>
+  <div id="hint">WASD / Shift — бег, мышь — обзор, ESC — отпустить курсор</div>
+  <div id="crosshair" aria-hidden="true"></div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

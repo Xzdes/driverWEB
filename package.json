@@ -1,0 +1,19 @@
+{
+  "name": "fps-json-babylon",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "babylonjs": "^8.34.1",
+    "babylonjs-loaders": "^8.34.1",
+    "babylonjs-materials": "^8.34.1"
+  },
+  "devDependencies": {
+    "vite": "^7.1.12"
+  }
+}
