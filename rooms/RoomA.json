@@ -42,7 +42,7 @@
       "rect": { "center": [0.0, 1.1], "size": [1.6, 2.2] },
       "locked": false,
       "toRoomFile": "/rooms/RoomB.json",
-      "exitPos": [10.5, 1.4, 0],
+      "exitPos": [11, 1.4, 0],
       "exitYaw": 90
     }
   ],
