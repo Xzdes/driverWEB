@@ -35,20 +35,17 @@
     { "type": "point", "pos": [16, 2.6, 0], "intensity": 700, "range": 18, "color": [1, 0.95, 0.9] }
   ],
 
-  "triggers": [],
-
   "portals": [
     {
       "id": "P_back_A",
       "wall": "west",
       "rect": { "center": [0.0, 1.1], "size": [1.6, 2.2] },
       "locked": false,
-      "toRoomFile": "/rooms/RoomA.json"
+      "toRoomFile": "/rooms/RoomA.json",
+      "exitPos": [7.5, 1.4, 0],
+      "exitYaw": -90
     }
   ],
 
-  "playerSpawn": { "enabled": false, "pos": [0, 1.0, 0], "yaw": 0 },
-
-  "enemies": [],
-  "pickups": []
+  "playerSpawn": { "enabled": false }
 }

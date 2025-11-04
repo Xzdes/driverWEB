@@ -1,5 +1,5 @@
 // main.js — Стабильное FPS-движение (Babylon v8) с собственной коллизией
-// ИСПРАВЛЕНО: Безопасный переход между сценами для исключения ошибки "No camera defined".
+// ИСПРАВЛЕНО: Бесшовный переход через порталы. Сначала проверяется вход в портал, потом коллизия со стеной.
 import {
   Engine, Scene, UniversalCamera, HemisphericLight, PointLight,
   MeshBuilder, Vector3, Color3, Color4, Texture, StandardMaterial,
@@ -33,9 +33,11 @@ const G = {
   },
   portalCooldownUntil: 0,
   isLoading: false,
-  nextRoomFile: null // <<-- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Запрос на смену комнаты
+  nextRoomFile: null,
+  playerSpawnInfo: null // <<-- Для бесшовного спавна
 };
 
+// ... (JSON, геометрия и коллизия остаются без изменений) ...
 // ---------- JSON ----------
 async function loadJSON(url) {
   const r = await fetch(url);
@@ -221,7 +223,7 @@ async function loadRoom(roomFile) {
     const rc = p.rect?.center || [0,1.1]; const rs = p.rect?.size || [1.6,2.2];
     const centerVec = wallWorldCenterWithOffset(p.wall, rc[1], rc[0]);
     const c = [centerVec.x, centerVec.y, centerVec.z];
-    const size = [(p.wall==="n"||p.wall==="s")?rs[0]:0.2, rs[1], (p.wall==="e"||p.wall==="w")?rs[0]:0.2];
+    const size = [(p.wall==="north"||p.wall==="south")?rs[0]:0.2, rs[1], (p.wall==="east"||p.wall==="west")?rs[0]:0.2];
     
     const pm = new StandardMaterial(`portal_${p.id}`, scene);
     pm.emissiveColor = p.locked ? new Color3(1,0.2,0.2) : new Color3(0.2,1,0.4);
@@ -232,12 +234,17 @@ async function loadRoom(roomFile) {
     let min = new Vector3(c[0]-h[0], c[1]-h[1], c[2]-h[2]);
     let max = new Vector3(c[0]+h[0], c[1]+h[1], c[2]+h[2]);
     const inward = R + 0.2;
-    if (p.wall === "east") min.x = (cx + hw) - inward; else if (p.wall === "west") max.x = (cx - hw) + inward;
+    if (p.wall === "east") min.x = (cx + hw) - inward; else if (p.wall === "west") max.x = (cx - hw) - inward;
     else if (p.wall === "north") min.z = (cz + hd) - inward; else if (p.wall === "south") max.z = (cz - hd) + inward;
     G.portals.push({ ...p, min, max });
   }
 
-  if (room.playerSpawn?.enabled) {
+  // ИСПРАВЛЕНО: Логика спавна для бесшовного перехода
+  if (G.playerSpawnInfo) {
+    cam.position = new Vector3(G.playerSpawnInfo.pos[0], G.fixedEyeY, G.playerSpawnInfo.pos[2]);
+    cam.rotation = new Vector3(0, Tools.ToRadians(G.playerSpawnInfo.yaw || 0), 0);
+    G.playerSpawnInfo = null; // Используем один раз и сбрасываем
+  } else if (room.playerSpawn?.enabled) {
     const s = room.playerSpawn;
     cam.position = new Vector3(s.pos[0], G.fixedEyeY, s.pos[2]);
     cam.rotation = new Vector3(0, Tools.ToRadians(s.yaw || 0), 0);
@@ -245,10 +252,10 @@ async function loadRoom(roomFile) {
     cam.position.y = G.fixedEyeY;
   }
 
-  G.portalCooldownUntil = performance.now() + 900;
+  G.portalCooldownUntil = performance.now() + 500; // Уменьшил кулдаун для отзывчивости
 
   scene.onBeforeRenderObservable.add(() => {
-    if (G.isLoading || G.nextRoomFile) return; // Не обновляем логику, если грузимся или ждём загрузки
+    if (G.isLoading || G.nextRoomFile) return;
     const dt = G.engine.getDeltaTime()/1000;
     
     const fwd = G.camera.getDirection(Vector3.Forward()); const right = G.camera.getDirection(Vector3.Right());
@@ -265,22 +272,28 @@ async function loadRoom(roomFile) {
       wish.normalize().scaleInPlace(speed);
       const prev = G.camera.position;
       const target = prev.add(wish);
+
+      // --- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ ЛОГИКИ ---
+      // 1. СНАЧАЛА проверяем, не входит ли наш СЛЕДУЮЩИЙ шаг в портал
+      if (performance.now() >= G.portalCooldownUntil) {
+        for (const portal of G.portals) {
+          if (inPortal(target, portal)) {
+            if (portal.locked) { log("TRIG", `portal ${portal.id} LOCKED`); return; }
+            log("ROOM", `portal ${portal.id} → ${portal.toRoomFile}`);
+            G.nextRoomFile = portal.toRoomFile;
+            G.playerSpawnInfo = { pos: portal.exitPos, yaw: portal.exitYaw }; // Сохраняем инфо для спавна
+            return; // Прерываем движение в этой сцене, готовимся к переходу
+          }
+        }
+      }
+
+      // 2. ЕСЛИ НЕ В ПОРТАЛЕ, то применяем физику стен и объектов
       let afterWalls = clampRoomWithOpenings(prev, target);
       let afterSolids = sweepAgainstSolids(prev, afterWalls);
       G.camera.position.copyFrom(afterSolids);
     }
-    if (G.fixedEyeY != null) G.camera.position.y = G.fixedEyeY;
     
-    if (performance.now() >= G.portalCooldownUntil) {
-      for (const portal of G.portals) {
-        if (inPortal(G.camera.position, portal)) {
-          if (portal.locked) { log("TRIG", `portal ${portal.id} LOCKED`); return; }
-          log("ROOM", `portal ${portal.id} → ${portal.toRoomFile}`);
-          G.nextRoomFile = portal.toRoomFile; // <<-- ИЗМЕНЕНИЕ: Просто устанавливаем флаг
-          return;
-        }
-      }
-    }
+    if (G.fixedEyeY != null) G.camera.position.y = G.fixedEyeY;
   });
 
   log("ROOM", `loaded "${room.id}" (walls+floor+ceil+props+portals)`);
@@ -300,18 +313,15 @@ async function start() {
 
   await loadRoom(G.currentRoomFile);
 
-  // ИСПРАВЛЕНО: Новый, безопасный цикл отрисовки
   engine.runRenderLoop(() => {
-    // 1. Если есть запрос на смену комнаты и мы не заняты, начинаем загрузку
     if (G.nextRoomFile && !G.isLoading) {
       loadRoom(G.nextRoomFile).catch(err => {
         log("ERR", `Failed to load room: ${err.message}`);
-        G.isLoading = false; // Сбрасываем флаг при ошибке
+        G.isLoading = false;
       });
-      G.nextRoomFile = null; // Сбрасываем запрос
+      G.nextRoomFile = null;
     }
 
-    // 2. Рендерим сцену только если мы не в процессе загрузки
     if (!G.isLoading && G.scene && G.scene.isReady()) {
       G.scene.render();
     }
