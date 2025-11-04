@@ -1,0 +1,6 @@
+{
+  "gameTitle": "My FPS Portal Project",
+  "version": "1.0.0",
+  "startRoom": "/rooms/RoomA.json",
+  "playerConfig": "/player/player.json"
+}

@@ -1,5 +1,5 @@
 // main.js — Стабильное FPS-движение (Babylon v8) с собственной коллизией
-// ИСПРАВЛЕНО: Корректный расчёт AABB триггера портала для всех стен.
+// ИСПРАВЛЕНО: Движок полностью управляется через JSON. Точка входа - game.json.
 import {
   Engine, Scene, UniversalCamera, HemisphericLight, PointLight,
   MeshBuilder, Vector3, Color3, Color4, Texture, StandardMaterial,
@@ -9,19 +9,16 @@ import "babylonjs-loaders";
 import "babylonjs-materials";
 
 const canvas = document.getElementById("renderCanvas");
-
-
 function log(tag, msg) {
   const line = `[${new Date().toLocaleTimeString()}] ${String(tag).padEnd(6)} ${msg}`;
   console.log("[Engine]", line);
-  
 }
-const v3 = (a)=> new Vector3(a[0],a[1],[2]);
+const v3 = (a)=> new Vector3(a[0],a[1],a[2]);
 
 const G = {
   engine: null, scene: null, camera: null,
   playerCfg: null,
-  currentRoomFile: "/rooms/RoomA.json",
+  currentRoomFile: null, // <<-- ИЗМЕНЕНИЕ: Больше нет "зашитого" пути
   room: null,
   textures: new Map(), materials: new Map(),
   portals: [],
@@ -38,7 +35,7 @@ const G = {
   playerSpawnInfo: null
 };
 
-// ... (JSON, геометрия и коллизия остаются без изменений) ...
+// ... (Функции loadJSON, makeBox, buildRoom и физика остаются без изменений) ...
 async function loadJSON(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
@@ -160,7 +157,7 @@ async function loadRoom(roomFile) {
   scene.clearColor = new Color4(0.05,0.06,0.08,1);
   G.scene = scene;
 
-  if (!G.playerCfg) G.playerCfg = await loadJSON("/player/player.json");
+  // G.playerCfg должен быть уже загружен на этом этапе
   const cfg = G.playerCfg;
   const R = cfg.radius ?? 0.36;
 
@@ -234,11 +231,10 @@ async function loadRoom(roomFile) {
     let max = new Vector3(c[0]+h[0], c[1]+h[1], c[2]+h[2]);
     const inward = R + 0.2;
 
-    // --- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ ---
     if (p.wall === "east") min.x = (cx + hw) - inward;
-    else if (p.wall === "west") max.x = (cx - hw) + inward; // Было `inward`, стало +`inward`
+    else if (p.wall === "west") max.x = (cx - hw) + inward;
     else if (p.wall === "north") min.z = (cz + hd) - inward;
-    else if (p.wall === "south") max.z = (cz - hd) + inward; // Было `inward`, стало +`inward`
+    else if (p.wall === "south") max.z = (cz - hd) + inward;
     
     G.portals.push({ ...p, min, max });
   }
@@ -311,7 +307,22 @@ async function start() {
   });
   window.addEventListener("keyup", (e) => G.keys[e.code] = false);
 
-  await loadRoom(G.currentRoomFile);
+  // <<-- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Загружаем манифест игры -->>
+  try {
+    const gameManifest = await loadJSON("/game.json");
+    log("SYS", `Loading game: ${gameManifest.gameTitle} v${gameManifest.version}`);
+
+    // Загружаем конфигурацию игрока ОДИН РАЗ при старте
+    G.playerCfg = await loadJSON(gameManifest.playerConfig);
+
+    // Загружаем стартовую комнату из манифеста
+    await loadRoom(gameManifest.startRoom);
+  } catch (err) {
+    log("FATAL", `Could not start game: ${err.message}`);
+    console.error(err);
+    // Можно вывести сообщение об ошибке на экран
+    return;
+  }
 
   engine.runRenderLoop(() => {
     if (G.nextRoomFile && !G.isLoading) {
