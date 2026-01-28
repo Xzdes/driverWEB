@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 2,
+  "id": "demo_room_2",
+  "name": "Demo Room 2 - Second Area",
+
+  "bounds": {
+    "center": [0, 3, 0],
+    "size": [16, 6, 12]
+  },
+
+  "environment": {
+    "ambientLight": 0.3
+  },
+
+  "proceduralTextures": [
+    {
+      "id": "tex_metal_dark",
+      "type": "metal",
+      "size": 512,
+      "params": {
+        "color": [40, 45, 50],
+        "scratches": true
+      }
+    },
+    {
+      "id": "tex_tiles_blue",
+      "type": "tiles",
+      "size": 512,
+      "params": {
+        "tileSize": 48,
+        "tileColor": [80, 120, 180],
+        "groutColor": [30, 30, 40]
+      }
+    },
+    {
+      "id": "tex_concrete_dark",
+      "type": "concrete",
+      "size": 512,
+      "params": {
+        "color": [60, 60, 65],
+        "roughness": 0.8
+      }
+    }
+  ],
+
+  "materials": [
+    { "id": "mat_walls", "diffuseTexture": "tex_metal_dark" },
+    { "id": "mat_floor", "diffuseTexture": "tex_tiles_blue" },
+    { "id": "mat_ceiling", "diffuseTexture": "tex_concrete_dark" }
+  ],
+
+  "surfaces": {
+    "floor": { "material": "mat_floor" },
+    "ceiling": { "material": "mat_ceiling" },
+    "wallNorth": { "material": "mat_walls" },
+    "wallSouth": { "material": "mat_walls" },
+    "wallEast": { "material": "mat_walls" },
+    "wallWest": { "material": "mat_walls" }
+  },
+
+  "lights": [
+    { "type": "point", "position": [0, 5, 0], "color": [0.5, 0.7, 1], "intensity": 1.0, "range": 15 },
+    { "type": "point", "position": [-4, 3, 0], "color": [1, 0.3, 0.2], "intensity": 0.6, "range": 8 },
+    { "type": "point", "position": [4, 3, 0], "color": [0.2, 1, 0.3], "intensity": 0.6, "range": 8 }
+  ],
+
+  "geometry": [
+    {
+      "id": "platform",
+      "type": "box",
+      "position": [0, 0.25, 3],
+      "size": [4, 0.5, 4],
+      "material": "mat_walls",
+      "collision": true
+    }
+  ],
+
+  "characters": [
+    {
+      "id": "guard_1",
+      "preset": "guard",
+      "position": [5, 0, 0],
+      "rotation": -90
+    },
+    {
+      "id": "alien_1",
+      "preset": "alien",
+      "position": [-5, 0, 3],
+      "rotation": 45
+    }
+  ],
+
+  "interactives": [],
+
+  "triggers": [
+    {
+      "id": "room2_welcome",
+      "type": "onEnter",
+      "volume": { "center": [-6, 1.5, 0], "size": [4, 3, 4] },
+      "once": true,
+      "actions": [
+        { "type": "showMessage", "params": { "text": "You found the second room!", "duration": 3000 } }
+      ]
+    }
+  ],
+
+  "portals": [
+    {
+      "id": "back_portal",
+      "wall": "west",
+      "rect": { "center": [0, 1.1], "size": [1.6, 2.2] },
+      "toRoom": "/rooms/demo.json",
+      "exitPosition": [7, 0, 0],
+      "exitRotation": -90,
+      "locked": false
+    }
+  ],
+
+  "sounds": [],
+
+  "playerSpawn": {
+    "enabled": true,
+    "position": [-6, 0, 0],
+    "rotation": 90
+  }
+}

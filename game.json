@@ -1,6 +1,17 @@
 {
-  "gameTitle": "My FPS Portal Project",
-  "version": "1.0.0",
-  "startRoom": "/rooms/RoomA.json",
-  "playerConfig": "/player/player.json"
+  "gameTitle": "Procedural FPS Engine Demo",
+  "version": "2.0.0",
+  "description": "JSON-driven FPS engine with procedural textures, sounds, and characters",
+  "startRoom": "/rooms/demo.json",
+  "playerConfig": "/player/player.json",
+  "globalState": {
+    "flags": {},
+    "counters": {}
+  },
+  "audioConfig": {
+    "masterVolume": 1.0,
+    "sfxVolume": 0.8,
+    "musicVolume": 0.5
+  },
+  "debugMode": true
 }

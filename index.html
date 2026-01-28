@@ -1,31 +1,169 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>FPS JSON (Babylon.js, Vite)</title>
+  <title>Procedural FPS Engine</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- убираем 404 на favicon -->
   <link rel="icon" href="data:,">
   <style>
-    html, body { width:100%; height:100%; margin:0; background:#000; color:#fff; }
-    #renderCanvas { width:100%; height:100%; touch-action:none; display:block; }
-    #hint {
-      position:absolute; right:10px; bottom:10px; background:rgba(0,0,0,0.55);
-      border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:6px 8px; font:14px/1.4 system-ui, sans-serif;
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+      font-family: system-ui, -apple-system, sans-serif;
     }
+
+    #renderCanvas {
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      display: block;
+    }
+
     #crosshair {
-      position:absolute; left:50%; top:50%; width:14px; height:14px; transform:translate(-50%,-50%); pointer-events:none;
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: 20px;
+      height: 20px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 100;
     }
-    #crosshair::before, #crosshair::after { content:""; position:absolute; left:50%; top:50%; background:#fff; opacity:0.9; }
-    #crosshair::before { width:2px; height:10px; transform:translate(-50%,-50%); }
-    #crosshair::after  { width:10px; height:2px; transform:translate(-50%,-50%); }
+    #crosshair::before,
+    #crosshair::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      background: rgba(255, 255, 255, 0.9);
+    }
+    #crosshair::before {
+      width: 2px;
+      height: 14px;
+      transform: translate(-50%, -50%);
+    }
+    #crosshair::after {
+      width: 14px;
+      height: 2px;
+      transform: translate(-50%, -50%);
+    }
+
+    #ui {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    #hint {
+      position: fixed;
+      right: 15px;
+      bottom: 15px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    #hint kbd {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      padding: 1px 5px;
+      margin: 0 2px;
+      font-family: inherit;
+    }
+
+    #message {
+      position: fixed;
+      top: 25%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      padding: 15px 30px;
+      font-size: 18px;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    #fade-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 200;
+      transition: opacity 0.3s ease-in-out;
+    }
+    #fade-overlay.active {
+      opacity: 1;
+    }
+
+    #inventory {
+      position: fixed;
+      left: 15px;
+      bottom: 15px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 12px;
+    }
+    #inventory:empty { display: none; }
+    #inventory .item {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      padding: 4px 8px;
+      margin: 2px;
+    }
+
+    #version {
+      position: fixed;
+      left: 15px;
+      top: 15px;
+      font-size: 11px;
+      opacity: 0.5;
+    }
   </style>
 </head>
 <body>
   <canvas id="renderCanvas"></canvas>
-  <div id="hint">WASD / Shift — бег, мышь — обзор, ESC — отпустить курсор</div>
+
   <div id="crosshair" aria-hidden="true"></div>
 
-  <script type="module" src="/main.js"></script>
+  <div id="fade-overlay"></div>
+
+  <div id="ui">
+    <div id="message"></div>
+    <div id="inventory"></div>
+  </div>
+
+  <div id="hint">
+    <kbd>WASD</kbd> Move
+    <kbd>Shift</kbd> Run
+    <kbd>Space</kbd> Jump
+    <kbd>Mouse</kbd> Look
+    <kbd>E</kbd> Interact
+    <kbd>ESC</kbd> Release cursor
+  </div>
+
+  <div id="version">Procedural FPS Engine v2.0</div>
+
+  <script type="module" src="/src/index.js"></script>
 </body>
 </html>

@@ -1,0 +1,298 @@
+{
+  "schemaVersion": 2,
+  "id": "demo_room",
+  "name": "Demo Room - Procedural Engine Test",
+
+  "bounds": {
+    "center": [0, 3, 0],
+    "size": [20, 6, 16]
+  },
+
+  "environment": {
+    "ambientLight": 0.4
+  },
+
+  "proceduralTextures": [
+    {
+      "id": "tex_brick",
+      "type": "brick",
+      "size": 512,
+      "params": {
+        "brickColor": [150, 75, 55],
+        "mortarColor": [80, 80, 75],
+        "brickWidth": 48,
+        "brickHeight": 24
+      }
+    },
+    {
+      "id": "tex_concrete",
+      "type": "concrete",
+      "size": 512,
+      "params": {
+        "color": [130, 130, 125],
+        "roughness": 0.6
+      }
+    },
+    {
+      "id": "tex_wood",
+      "type": "wood",
+      "size": 512,
+      "params": {
+        "color1": [120, 80, 50],
+        "color2": [80, 50, 30]
+      }
+    },
+    {
+      "id": "tex_metal",
+      "type": "metal",
+      "size": 256,
+      "params": {
+        "color": [70, 75, 80],
+        "scratches": true
+      }
+    },
+    {
+      "id": "tex_tiles",
+      "type": "tiles",
+      "size": 512,
+      "params": {
+        "tileSize": 64,
+        "tileColor": [200, 200, 210],
+        "groutColor": [60, 60, 60]
+      }
+    }
+  ],
+
+  "materials": [
+    { "id": "mat_brick", "diffuseTexture": "tex_brick" },
+    { "id": "mat_floor", "diffuseTexture": "tex_concrete" },
+    { "id": "mat_ceiling", "diffuseTexture": "tex_wood" },
+    { "id": "mat_metal", "diffuseTexture": "tex_metal" },
+    { "id": "mat_tiles", "diffuseTexture": "tex_tiles" }
+  ],
+
+  "surfaces": {
+    "floor": { "material": "mat_floor" },
+    "ceiling": { "material": "mat_ceiling" },
+    "wallNorth": { "material": "mat_brick" },
+    "wallSouth": { "material": "mat_brick" },
+    "wallEast": { "material": "mat_brick" },
+    "wallWest": { "material": "mat_brick" }
+  },
+
+  "lights": [
+    { "type": "point", "position": [0, 5, 0], "color": [1, 0.95, 0.9], "intensity": 1.2, "range": 18 },
+    { "type": "point", "position": [-6, 4, -4], "color": [0.9, 0.7, 0.5], "intensity": 0.8, "range": 10 },
+    { "type": "point", "position": [6, 4, 4], "color": [0.5, 0.7, 1], "intensity": 0.8, "range": 10 }
+  ],
+
+  "geometry": [
+    {
+      "id": "crate_1",
+      "type": "box",
+      "position": [-5, 0.5, -4],
+      "size": [1, 1, 1],
+      "material": "mat_metal",
+      "collision": true
+    },
+    {
+      "id": "crate_2",
+      "type": "box",
+      "position": [-4.5, 1.5, -4],
+      "size": [0.8, 0.8, 0.8],
+      "material": "mat_metal",
+      "collision": true
+    },
+    {
+      "id": "pillar_1",
+      "type": "cylinder",
+      "position": [-4, 3, 2],
+      "size": [0.4, 6, 0.4],
+      "material": "mat_floor",
+      "collision": true
+    },
+    {
+      "id": "pillar_2",
+      "type": "cylinder",
+      "position": [4, 3, 2],
+      "size": [0.4, 6, 0.4],
+      "material": "mat_floor",
+      "collision": true
+    },
+    {
+      "id": "table",
+      "type": "box",
+      "position": [5, 0.4, -3],
+      "size": [2, 0.1, 1],
+      "material": "mat_metal",
+      "collision": true,
+      "solid": true
+    },
+    {
+      "id": "table_leg_1",
+      "type": "cylinder",
+      "position": [4.2, 0.2, -2.6],
+      "size": [0.1, 0.4, 0.1],
+      "material": "mat_metal",
+      "collision": true
+    },
+    {
+      "id": "table_leg_2",
+      "type": "cylinder",
+      "position": [5.8, 0.2, -2.6],
+      "size": [0.1, 0.4, 0.1],
+      "material": "mat_metal",
+      "collision": true
+    },
+    {
+      "id": "table_leg_3",
+      "type": "cylinder",
+      "position": [4.2, 0.2, -3.4],
+      "size": [0.1, 0.4, 0.1],
+      "material": "mat_metal",
+      "collision": true
+    },
+    {
+      "id": "table_leg_4",
+      "type": "cylinder",
+      "position": [5.8, 0.2, -3.4],
+      "size": [0.1, 0.4, 0.1],
+      "material": "mat_metal",
+      "collision": true
+    },
+    {
+      "id": "physics_box_1",
+      "type": "box",
+      "position": [0, 0.3, 3],
+      "size": [0.6, 0.6, 0.6],
+      "material": "mat_metal",
+      "collision": true,
+      "physics": true,
+      "mass": 1.5,
+      "pushResistance": 0.2
+    },
+    {
+      "id": "physics_box_2",
+      "type": "box",
+      "position": [2, 0.25, 2],
+      "size": [0.5, 0.5, 0.5],
+      "material": "mat_tiles",
+      "collision": true,
+      "physics": true,
+      "mass": 1,
+      "pushResistance": 0.1
+    },
+    {
+      "id": "physics_barrel",
+      "type": "cylinder",
+      "position": [-2, 0.5, 3],
+      "size": [0.5, 1, 0.5],
+      "material": "mat_metal",
+      "collision": true,
+      "physics": true,
+      "mass": 2,
+      "pushResistance": 0.4
+    }
+  ],
+
+  "characters": [
+    {
+      "id": "enemy_1",
+      "preset": "mannequin_red",
+      "position": [6, 0, 5],
+      "rotation": -90
+    },
+    {
+      "id": "soldier_1",
+      "preset": "soldier",
+      "position": [-6, 0, 5],
+      "rotation": 45
+    },
+    {
+      "id": "robot_1",
+      "preset": "robot",
+      "position": [0, 0, 6],
+      "rotation": 180
+    }
+  ],
+
+  "interactives": [
+    {
+      "id": "button_1",
+      "type": "button",
+      "position": [-9.8, 1.2, 0],
+      "rotation": 90,
+      "color": [0.2, 0.8, 0.2],
+      "targetAction": { "type": "showMessage", "params": { "text": "Button pressed!", "duration": 2000 } }
+    },
+    {
+      "id": "key_blue",
+      "type": "pickup",
+      "position": [5, 0.5, -3],
+      "itemType": "key",
+      "itemId": "blue_key",
+      "color": [0.2, 0.5, 1],
+      "size": 0.2
+    },
+    {
+      "id": "health_pack",
+      "type": "pickup",
+      "position": [-5, 0.5, 4],
+      "itemType": "health",
+      "amount": 25,
+      "respawn": true,
+      "respawnTime": 30
+    }
+  ],
+
+  "triggers": [
+    {
+      "id": "welcome_trigger",
+      "type": "onEnter",
+      "volume": { "center": [0, 1.5, -5], "size": [6, 3, 2] },
+      "once": true,
+      "actions": [
+        { "type": "showMessage", "params": { "text": "Welcome to the Procedural Engine Demo!", "duration": 4000 } }
+      ]
+    },
+    {
+      "id": "enemy_zone",
+      "type": "onEnter",
+      "volume": { "center": [5, 1.5, 5], "size": [4, 3, 4] },
+      "once": true,
+      "actions": [
+        { "type": "showMessage", "params": { "text": "Enemy territory!", "duration": 2000 } },
+        { "type": "setFlag", "target": "entered_enemy_zone", "params": { "value": true } }
+      ]
+    }
+  ],
+
+  "portals": [
+    {
+      "id": "exit_portal",
+      "wall": "east",
+      "rect": { "center": [0, 1.1], "size": [1.6, 2.2] },
+      "toRoom": "/rooms/demo2.json",
+      "exitPosition": [-5, 0, 0],
+      "exitRotation": 90,
+      "locked": false
+    }
+  ],
+
+  "sounds": [
+    {
+      "id": "ambient",
+      "type": "procedural",
+      "preset": "ambient_hum",
+      "autoplay": true,
+      "loop": true,
+      "volume": 0.3
+    }
+  ],
+
+  "playerSpawn": {
+    "enabled": true,
+    "position": [0, 0, -6],
+    "rotation": 0
+  }
+}
